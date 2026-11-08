@@ -76,7 +76,8 @@ const bridge = new RuleEngineBridge({ ruleEngine, crdtStore, syncEngine });
 
 ```bash
 npm install
-npm run typecheck      # tsc --noEmit
+npm run typecheck      # tsc --noEmit over src/ and tests/
+npm test               # vitest: replay window, CRDT tie-break, rule priority
 npm run rule-example   # standalone rule engine walkthrough
 npm run example        # two-peer encrypted sync + rule reaction
 npm run build          # emit dist/
@@ -90,6 +91,9 @@ npm run build          # emit dist/
   breaks ties), so replicas converge without a coordinator.
 - `TransportLayer` is the only integration point needed for real links
   (Bluetooth LE, Wi-Fi Direct, LoRa, localhost sockets).
+- Test suite (`tests/`) covers the 64-message replay window including its
+  exact boundary, duplicate nonces, tampered envelopes, CRDT tie-breaking by
+  peer id, merge-order convergence, and deterministic rule priority ordering.
 
 ## License
 
