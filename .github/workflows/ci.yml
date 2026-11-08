@@ -186,12 +186,20 @@ jobs:
             );
 
             if (fs.existsSync(diffPath)) {
-              // drop diff-cover's own top-level heading; the section title is above
+              // Nest diff-cover's own headings below "Changed lines" and drop its
+              // trailing horizontal rule so the comment reads as one document.
               const report = fs
                 .readFileSync(diffPath, 'utf8')
                 .split('\n')
                 .filter((line) => !line.startsWith('# '))
+                .map((line) =>
+                  line.replace(/^(#{1,6}) /, (_, hashes) =>
+                    `${'#'.repeat(Math.min(hashes.length + 2, 6))} `
+                  )
+                )
                 .join('\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .replace(/\n*-{3,}\s*$/, '')
                 .trim();
               lines.push(report || '_No changed lines to measure._');
             } else {
