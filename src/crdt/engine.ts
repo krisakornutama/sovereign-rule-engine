@@ -7,9 +7,12 @@ import type {
 } from './types.js';
 
 /**
- * Last-writer-wins register map with a deterministic tie-breaker:
- * higher timestamp wins, and on equal timestamps the lexicographically
- * greater peer id wins. Every replica therefore converges on the same value.
+ * Last-writer-wins register map with a deterministic total order:
+ * higher timestamp wins, on equal timestamps the lexicographically greater
+ * peer id wins, and on equal (timestamp, peer id) the canonically greater
+ * value wins. That last step matters because one peer can write the same key
+ * twice within the same millisecond; without it, replicas observing those two
+ * writes in different orders would never converge.
  */
 export class MemoryCRDTStore {
   private readonly entries = new Map<string, CRDTEntry>();
@@ -110,13 +113,58 @@ export class MemoryCRDTStore {
   }
 }
 
-/** Negative when `a` loses to `b`, positive when `a` wins. */
+/** Negative when `a` loses to `b`, positive when `a` wins, 0 if identical. */
 export function compareEntries(a: CRDTEntry, b: CRDTEntry): number {
   if (a.timestamp !== b.timestamp) {
     return a.timestamp - b.timestamp;
   }
-  if (a.peerId === b.peerId) return 0;
-  return a.peerId > b.peerId ? 1 : -1;
+  if (a.peerId !== b.peerId) {
+    return a.peerId > b.peerId ? 1 : -1;
+  }
+  const left = canonicalValue(a.value);
+  const right = canonicalValue(b.value);
+  if (left === right) return 0;
+  return left > right ? 1 : -1;
+}
+
+/**
+ * Stable textual encoding of a value, used only to break ties. Object keys are
+ * sorted so `{a:1,b:2}` and `{b:2,a:1}` compare equal, and distinct primitives
+ * can never collide because each is tagged by type.
+ */
+export function canonicalValue(value: unknown): string {
+  if (value === null) return 'null';
+  switch (typeof value) {
+    case 'undefined':
+      return 'undefined';
+    case 'boolean':
+      return `boolean:${value}`;
+    case 'number':
+      return `number:${Object.is(value, -0) ? '0' : String(value)}`;
+    case 'bigint':
+      return `bigint:${value.toString()}`;
+    case 'string':
+      return `string:${value}`;
+    case 'object': {
+      try {
+        if (Array.isArray(value)) {
+          return `array:[${value.map(canonicalValue).join(',')}]`;
+        }
+        if (value instanceof Uint8Array) {
+          return `bytes:${Array.from(value).join('.')}`;
+        }
+        const record = value as Record<string, unknown>;
+        const keys = Object.keys(record).sort();
+        return `object:{${keys
+          .map((key) => `${JSON.stringify(key)}:${canonicalValue(record[key])}`)
+          .join(',')}}`;
+      } catch {
+        return 'object:unserializable';
+      }
+    }
+    default:
+      return `${typeof value}:${String(value)}`;
+  }
 }
 
 export function createMemoryCRDTStore(): MemoryCRDTStore {

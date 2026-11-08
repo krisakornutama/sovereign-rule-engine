@@ -87,13 +87,20 @@ npm run build          # emit dist/
 
 - Rules are plain data: persist them with any store, replicate them through the
   same CRDT layer, or ship them as JSON.
-- The default resolver is last-writer-wins (higher timestamp wins, peer id
-  breaks ties), so replicas converge without a coordinator.
+- The default resolver is last-writer-wins with a deterministic total order:
+  higher timestamp wins, then the lexicographically greater peer id, then the
+  canonically greater value (so one peer's two writes in the same millisecond
+  still resolve identically on every replica). Replicas converge without a
+  coordinator.
 - `TransportLayer` is the only integration point needed for real links
   (Bluetooth LE, Wi-Fi Direct, LoRa, localhost sockets).
 - Test suite (`tests/`) covers the 64-message replay window including its
   exact boundary, duplicate nonces, tampered envelopes, CRDT tie-breaking by
-  peer id, merge-order convergence, and deterministic rule priority ordering.
+  peer id and by canonical value, merge-order convergence, and deterministic
+  rule priority ordering.
+- `tests/*.property.test.ts` uses fast-check to assert CRDT convergence over
+  random entries and random delivery permutations, including duplicate-delivery
+  idempotence; CI runs it on Node 20 and 22 for every push and pull request.
 
 ## License
 

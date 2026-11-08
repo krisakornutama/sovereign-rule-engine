@@ -50,6 +50,25 @@ describe('CRDT last-writer-wins tie-break', () => {
     expect(compareEntries(fromA, fromB)).toBeLessThan(0);
   });
 
+  it('orders same-timestamp same-peer writes by canonical value (regression)', () => {
+    // One peer writing the same key twice within the same millisecond would
+    // otherwise be unordered, so replicas could diverge permanently.
+    const first = entry('k', 1, 100, 'peer-a');
+    const second = entry('k', 2, 100, 'peer-a');
+
+    const forward = new MemoryCRDTStore();
+    forward.applyDelta({ entries: [first] });
+    forward.applyDelta({ entries: [second] });
+
+    const backward = new MemoryCRDTStore();
+    backward.applyDelta({ entries: [second] });
+    backward.applyDelta({ entries: [first] });
+
+    expect(forward.get('k')?.value).toBe(2);
+    expect(backward.get('k')?.value).toBe(2);
+    expect(compareEntries(second, first)).toBeGreaterThan(0);
+  });
+
   it('treats identical timestamp and peer as a no-op', () => {
     const same = entry('key', 'value', 7_000, 'peer-a');
     const store = new MemoryCRDTStore();
