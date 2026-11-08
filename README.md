@@ -95,7 +95,7 @@ npm install
 
 npm test               # 87 vitest tests (unit, integration, property-based)
 npm run test:coverage  # v8 coverage report in coverage/ + threshold gate
-npm run lint           # ESLint (flat config, TypeScript rules)
+npm run lint           # ESLint (flat config, type-aware TS rules)
 npm run format:check   # Prettier check (npm run format to rewrite)
 npm run typecheck      # tsc over src/ and tests/
 npm run rule-example   # rule engine walkthrough
@@ -110,15 +110,23 @@ so CI fails on a regression.
 
 CI (`.github/workflows/ci.yml`) runs on every push to `main` and every pull
 request: `npm ci` → lint → format check → typecheck → tests with coverage →
-build, on Node 20 and 22.
-Each job uploads its report as the `coverage-node-20` / `coverage-node-22`
-artifact (14 days), and pull requests from this repository get a single sticky
-comment with the coverage table, updated in place on each push.
+build, on Node 20 and 22. ESLint runs type-aware rules over `src/` and `tests/`
+(`@typescript-eslint/no-floating-promises`, `await-thenable`), so a dropped
+promise fails the build instead of surfacing later as a flaky test.
+Each leg uploads its report as the `coverage-node-20` / `coverage-node-22`
+artifact (14 days).
 
-Pull requests also get a `diff coverage` job: it compares `coverage/lcov.info`
-against the merge base and fails when fewer than 90% of the **new or changed**
-lines are covered, so untouched legacy code cannot block a PR. Its report is
-written to the workflow run summary.
+Pull requests also get a `diff coverage` job. It downloads the
+`coverage-node-20` artifact instead of running the suite a third time, then runs
+a pinned `diff-cover` (11.0.1) against the merge base and fails when fewer than
+90% of the **new or changed** lines are covered, so untouched legacy code cannot
+block a PR. The gate value lives once in the workflow `env`, and the report is
+uploaded as the `diff-coverage-report` artifact and written to the run summary.
+
+A final `report` job waits for both and posts a single sticky comment with the
+coverage table and the changed-lines result, updated in place on every push —
+including when the diff gate fails. Fork PRs are skipped because their token is
+read-only.
 
 ## Notes
 

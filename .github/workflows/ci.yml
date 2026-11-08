@@ -12,13 +12,15 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # The PR diff-coverage gate lives here so the run and the comment cannot drift.
+  DIFF_COVERAGE_MIN: '90'
+  DIFF_COVER_VERSION: '11.0.1'
+
 jobs:
   verify:
     name: typecheck + test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
     strategy:
       fail-fast: false
       matrix:
@@ -58,47 +60,152 @@ jobs:
           path: coverage/
           retention-days: 14
 
-      # Only the Node 20 leg comments, and only for PRs from this repository:
-      # fork PRs get a read-only token, so posting would fail.
+  # Only the lines a PR adds or changes have to be tested; untouched legacy
+  # code cannot drag a pull request down. It reuses the Node 20 coverage
+  # artifact instead of running the suite a third time.
+  diff-coverage:
+    name: diff coverage (changed lines)
+    if: github.event_name == 'pull_request'
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # The merge base with the base branch must exist locally.
+          fetch-depth: 0
+
+      - name: Download coverage (Node 20)
+        uses: actions/download-artifact@v7
+        with:
+          name: coverage-node-20
+          path: coverage
+
+      - name: Diff coverage for changed lines
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set +e
+          python3 -m venv "$RUNNER_TEMP/diff-cover-venv"
+          "$RUNNER_TEMP/diff-cover-venv/bin/pip" install --quiet "diff-cover==$DIFF_COVER_VERSION"
+          "$RUNNER_TEMP/diff-cover-venv/bin/diff-cover" coverage/lcov.info \
+            --compare-branch "origin/$BASE_REF" \
+            --fail-under="$DIFF_COVERAGE_MIN" \
+            --format markdown:diff-coverage.md
+          status=$?
+          if [ -f diff-coverage.md ]; then
+            cat diff-coverage.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'No diff coverage report was generated.\n' > diff-coverage.md
+          fi
+          exit $status
+
+      - name: Upload diff coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diff-coverage-report
+          path: diff-coverage.md
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # One sticky comment per PR: the coverage table plus the changed-line result,
+  # written after both jobs so a failing diff gate still shows up in the comment.
+  report:
+    name: PR coverage comment
+    needs: [verify, diff-coverage]
+    if: >-
+      always() &&
+      !cancelled() &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Download coverage summary
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: coverage-node-20
+          path: coverage
+
+      - name: Download diff coverage report
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: diff-coverage-report
+          path: diff-coverage
+
+      # Fork PRs are excluded above: they only get a read-only token.
       - name: Comment coverage summary on PR
-        if: >-
-          github.event_name == 'pull_request' &&
-          matrix.node == 20 &&
-          github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9
         env:
-          NODE_VERSION: ${{ matrix.node }}
+          NODE_VERSION: '20'
           COVERAGE_THRESHOLDS: lines 90 / statements 90 / functions 90 / branches 80
+          DIFF_MIN: ${{ env.DIFF_COVERAGE_MIN }}
+          DIFF_RESULT: ${{ needs.diff-coverage.result }}
         with:
           script: |
             const fs = require('node:fs');
             const marker = '<!-- coverage-report -->';
             const summaryPath = 'coverage/coverage-summary.json';
+            const diffPath = 'diff-coverage/diff-coverage.md';
+            const nodeVersion = process.env.NODE_VERSION;
+            const diffMin = process.env.DIFF_MIN;
+            const diffResult = process.env.DIFF_RESULT || 'unknown';
 
-            if (!fs.existsSync(summaryPath)) {
-              core.warning(`No coverage summary at ${summaryPath}; skipping PR comment.`);
-              return;
+            const lines = [marker, '## Coverage report', ''];
+
+            if (fs.existsSync(summaryPath)) {
+              const { total } = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+              const row = (label, metric) =>
+                `| ${label} | ${metric.covered} / ${metric.total} | ${metric.pct.toFixed(2)}% |`;
+              lines.push(
+                '| Metric | Covered | % |',
+                '| --- | --- | --- |',
+                row('Lines', total.lines),
+                row('Statements', total.statements),
+                row('Functions', total.functions),
+                row('Branches', total.branches),
+                '',
+                `Gate (\`src/\`): ${process.env.COVERAGE_THRESHOLDS}.`
+              );
+            } else {
+              core.warning(`No coverage summary at ${summaryPath}; reporting without it.`);
+              lines.push(`_Coverage summary was not produced._`);
             }
 
-            const { total } = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
-            const row = (label, metric) =>
-              `| ${label} | ${metric.covered} / ${metric.total} | ${metric.pct.toFixed(2)}% |`;
-
-            const body = [
-              marker,
-              '## Coverage report',
+            lines.push(
               '',
-              '| Metric | Covered | % |',
-              '| --- | --- | --- |',
-              row('Lines', total.lines),
-              row('Statements', total.statements),
-              row('Functions', total.functions),
-              row('Branches', total.branches),
+              `### Changed lines (diff coverage)`,
               '',
-              `Gate (\`src/\`): ${process.env.COVERAGE_THRESHOLDS}.`,
-              `Node ${process.env.NODE_VERSION} · full report in the \`coverage-node-${process.env.NODE_VERSION}\` artifact.`,
-            ].join('\n');
+              `Gate: at least **${diffMin}%** of new or changed lines covered · job status: **${diffResult}**.`,
+              ''
+            );
 
+            if (fs.existsSync(diffPath)) {
+              // drop diff-cover's own top-level heading; the section title is above
+              const report = fs
+                .readFileSync(diffPath, 'utf8')
+                .split('\n')
+                .filter((line) => !line.startsWith('# '))
+                .join('\n')
+                .trim();
+              lines.push(report || '_No changed lines to measure._');
+            } else {
+              const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+              lines.push(`_No diff coverage report was uploaded._ See the [run summary](${runUrl}).`);
+            }
+
+            lines.push(
+              '',
+              `---`,
+              `Node ${nodeVersion} · artifacts: \`coverage-node-${nodeVersion}\`, \`diff-coverage-report\`.`
+            );
+
+            const body = lines.join('\n');
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -121,45 +228,3 @@ jobs:
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
               core.info('Created coverage comment.');
             }
-
-  # Only the lines a PR adds or changes have to be tested; untouched legacy
-  # code cannot drag a pull request down.
-  diff-coverage:
-    name: diff coverage (changed lines)
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          # The merge base with the base branch must be available locally.
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Test with coverage
-        run: npm run test:coverage
-
-      - name: Diff coverage for changed lines
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          set +e
-          python3 -m venv "$RUNNER_TEMP/diff-cover-venv"
-          "$RUNNER_TEMP/diff-cover-venv/bin/pip" install --quiet diff-cover
-          "$RUNNER_TEMP/diff-cover-venv/bin/diff-cover" coverage/lcov.info \
-            --compare-branch "origin/$BASE_REF" \
-            --fail-under=90 \
-            --format markdown:diff-coverage.md
-          status=$?
-          if [ -f diff-coverage.md ]; then
-            cat diff-coverage.md >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit $status
