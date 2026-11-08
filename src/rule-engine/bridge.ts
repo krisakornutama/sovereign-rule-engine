@@ -52,10 +52,7 @@ export class RuleEngineBridge {
     return this.ruleEngine.evaluate(event);
   }
 
-  emitSyncEvent(
-    type: SyncEventType,
-    payload: Record<string, unknown>
-  ): Promise<void> {
+  emitSyncEvent(type: SyncEventType, payload: Record<string, unknown>): Promise<void> {
     return this.ruleEngine.evaluate({
       type,
       payload,

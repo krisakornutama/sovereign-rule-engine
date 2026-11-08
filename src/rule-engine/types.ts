@@ -1,13 +1,5 @@
 export type RuleOperator =
-  | 'eq'
-  | 'neq'
-  | 'gt'
-  | 'gte'
-  | 'lt'
-  | 'lte'
-  | 'in'
-  | 'contains'
-  | 'exists';
+  'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'contains' | 'exists';
 
 export interface RuleCondition {
   readonly field: string;

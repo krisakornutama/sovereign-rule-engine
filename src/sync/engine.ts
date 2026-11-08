@@ -1,5 +1,10 @@
 import { bytesToUtf8, utf8ToBytes } from '../types.js';
-import type { CryptoEnvelope, HandshakeInit, HandshakeResponse, IdentityKeyPair } from '../crypto/types.js';
+import type {
+  CryptoEnvelope,
+  HandshakeInit,
+  HandshakeResponse,
+  IdentityKeyPair,
+} from '../crypto/types.js';
 import {
   acceptHandshake,
   createHandshakeInit,
@@ -118,9 +123,7 @@ export class LocalSyncEngine {
   }
 
   localLeaves(): string[] {
-    return this.localEntries().map((entry) =>
-      this.cas.put(utf8ToBytes(JSON.stringify(entry)))
-    );
+    return this.localEntries().map((entry) => this.cas.put(utf8ToBytes(JSON.stringify(entry))));
   }
 
   localRoot(): string {
@@ -157,11 +160,7 @@ export class LocalSyncEngine {
 
       switch (message.kind) {
         case 'handshake-init': {
-          const { response, session } = acceptHandshake(
-            message.init,
-            this.peerId,
-            this.identity
-          );
+          const { response, session } = acceptHandshake(message.init, this.peerId, this.identity);
           this.sessions.set(frame.from, session);
           await this.transport.sendFrame({
             from: this.peerId,
@@ -170,7 +169,11 @@ export class LocalSyncEngine {
               JSON.stringify({ kind: 'handshake-response', response } satisfies WireMessage)
             ),
           });
-          this.emit('PEER_CONNECTED', { remotePeerId: frame.from, sessionId: session.sessionId }, frame.from);
+          this.emit(
+            'PEER_CONNECTED',
+            { remotePeerId: frame.from, sessionId: session.sessionId },
+            frame.from
+          );
           this.resolveConnection(frame.from, session);
           break;
         }
@@ -178,13 +181,21 @@ export class LocalSyncEngine {
         case 'handshake-response': {
           const pending = this.pending.get(frame.from);
           if (!pending) {
-            this.emit('SYNC_ERROR', { message: 'Unexpected handshake response', remotePeerId: frame.from }, frame.from);
+            this.emit(
+              'SYNC_ERROR',
+              { message: 'Unexpected handshake response', remotePeerId: frame.from },
+              frame.from
+            );
             return;
           }
           const session = finalizeHandshake(pending, message.response, this.identity);
           this.sessions.set(frame.from, session);
           this.pending.delete(frame.from);
-          this.emit('PEER_CONNECTED', { remotePeerId: frame.from, sessionId: session.sessionId }, frame.from);
+          this.emit(
+            'PEER_CONNECTED',
+            { remotePeerId: frame.from, sessionId: session.sessionId },
+            frame.from
+          );
           this.resolveConnection(frame.from, session);
           break;
         }
@@ -202,7 +213,10 @@ export class LocalSyncEngine {
     } catch (error) {
       this.emit(
         'SYNC_ERROR',
-        { message: error instanceof Error ? error.message : 'Unknown sync error', remotePeerId: frame.from },
+        {
+          message: error instanceof Error ? error.message : 'Unknown sync error',
+          remotePeerId: frame.from,
+        },
         frame.from
       );
     }
@@ -284,11 +298,7 @@ export class LocalSyncEngine {
     }
   }
 
-  private emit(
-    type: SyncEventType,
-    payload: Record<string, unknown>,
-    sourcePeerId?: PeerId
-  ): void {
+  private emit(type: SyncEventType, payload: Record<string, unknown>, sourcePeerId?: PeerId): void {
     const event: SyncEvent = { type, payload, timestamp: Date.now(), sourcePeerId };
     for (const listener of [...this.listeners]) {
       listener(event);

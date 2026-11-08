@@ -1,9 +1,6 @@
 import type { Rule, RuleCondition, RuleEvent } from './types.js';
 
-export function getFieldValue(
-  payload: Record<string, unknown>,
-  field: string
-): unknown {
+export function getFieldValue(payload: Record<string, unknown>, field: string): unknown {
   let current: unknown = payload;
   for (const part of field.split('.')) {
     if (current !== null && typeof current === 'object' && part in current) {
@@ -15,10 +12,7 @@ export function getFieldValue(
   return current;
 }
 
-export function evaluateCondition(
-  condition: RuleCondition,
-  event: RuleEvent
-): boolean {
+export function evaluateCondition(condition: RuleCondition, event: RuleEvent): boolean {
   const value = getFieldValue(event.payload, condition.field);
 
   switch (condition.operator) {

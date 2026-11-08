@@ -36,6 +36,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
       - name: Typecheck (src + tests)
         run: npm run typecheck
 
@@ -115,3 +121,45 @@ jobs:
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
               core.info('Created coverage comment.');
             }
+
+  # Only the lines a PR adds or changes have to be tested; untouched legacy
+  # code cannot drag a pull request down.
+  diff-coverage:
+    name: diff coverage (changed lines)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # The merge base with the base branch must be available locally.
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test with coverage
+        run: npm run test:coverage
+
+      - name: Diff coverage for changed lines
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set +e
+          python3 -m venv "$RUNNER_TEMP/diff-cover-venv"
+          "$RUNNER_TEMP/diff-cover-venv/bin/pip" install --quiet diff-cover
+          "$RUNNER_TEMP/diff-cover-venv/bin/diff-cover" coverage/lcov.info \
+            --compare-branch "origin/$BASE_REF" \
+            --fail-under=90 \
+            --format markdown:diff-coverage.md
+          status=$?
+          if [ -f diff-coverage.md ]; then
+            cat diff-coverage.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $status

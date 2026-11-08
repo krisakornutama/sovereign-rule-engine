@@ -15,10 +15,7 @@ export function encodeVarInt(value: number): Uint8Array {
   return new Uint8Array(bytes);
 }
 
-export function decodeVarInt(
-  bytes: Uint8Array,
-  offset = 0
-): { value: number; bytesRead: number } {
+export function decodeVarInt(bytes: Uint8Array, offset = 0): { value: number; bytesRead: number } {
   let value = 0;
   let shift = 1;
   let cursor = offset;

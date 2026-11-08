@@ -22,11 +22,7 @@ const event: RuleEvent = {
   timestamp: 1_000,
 };
 
-function addRule(
-  engine: SimpleRuleEngine,
-  name: string,
-  priority: number
-): void {
+function addRule(engine: SimpleRuleEngine, name: string, priority: number): void {
   engine.addRuleFromDefinition({
     id: name.toLowerCase(),
     name,

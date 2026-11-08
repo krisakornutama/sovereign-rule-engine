@@ -85,9 +85,7 @@ describe('encrypted local sync', () => {
     const { peerB, syncA } = createPair();
     await expect(syncA.announce(peerB)).rejects.toThrow(/connect first/);
     await expect(
-      syncA.sendDeltaBatch(peerB, [
-        { key: 'k', value: 1, timestamp: 1, peerId: 'peer-a' },
-      ])
+      syncA.sendDeltaBatch(peerB, [{ key: 'k', value: 1, timestamp: 1, peerId: 'peer-a' }])
     ).rejects.toThrow(/connect first/);
   });
 

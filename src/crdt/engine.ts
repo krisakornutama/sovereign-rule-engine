@@ -1,10 +1,4 @@
-import type {
-  ConflictRecord,
-  CRDTDelta,
-  CRDTEntry,
-  CRDTMergeResult,
-  CRDTState,
-} from './types.js';
+import type { ConflictRecord, CRDTDelta, CRDTEntry, CRDTMergeResult, CRDTState } from './types.js';
 
 /**
  * Last-writer-wins register map with a deterministic total order:
@@ -30,12 +24,7 @@ export class MemoryCRDTStore {
     }
   }
 
-  set(
-    key: string,
-    value: unknown,
-    peerId: string,
-    timestamp: number = Date.now()
-  ): CRDTEntry {
+  set(key: string, value: unknown, peerId: string, timestamp: number = Date.now()): CRDTEntry {
     const incoming: CRDTEntry = { key, value, timestamp, peerId };
     const existing = this.entries.get(key);
 

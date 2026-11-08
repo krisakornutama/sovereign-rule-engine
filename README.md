@@ -10,13 +10,13 @@ Node.js 18+ and in the browser / PWA.
 
 ## Layers
 
-| Layer | Files | Responsibility |
-| --- | --- | --- |
-| Transport | `src/transport/*` | Abstract `TransportLayer` (`sendFrame` / `onFrame`), in-memory network, composite link with fallback + retry |
-| Crypto | `src/crypto/*` | Mutual-auth handshake (Ed25519 + ephemeral X25519 + HKDF), XChaCha20-Poly1305 envelopes, 24-byte nonce, sliding replay window |
-| Storage | `src/merkle/*`, `src/crdt/*` | SHA-256 content-addressed store, Merkle roots/diff, LWW CRDT register map |
-| Sync | `src/sync/*` | Encrypted announce → delta batch → merge → ack, with a `sync:event` listener |
-| Rules | `src/rule-engine/*` | Rule parser, condition matcher, action dispatcher, engine, and the sync/CRDT bridge |
+| Layer     | Files                        | Responsibility                                                                                                                |
+| --------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Transport | `src/transport/*`            | Abstract `TransportLayer` (`sendFrame` / `onFrame`), in-memory network, composite link with fallback + retry                  |
+| Crypto    | `src/crypto/*`               | Mutual-auth handshake (Ed25519 + ephemeral X25519 + HKDF), XChaCha20-Poly1305 envelopes, 24-byte nonce, sliding replay window |
+| Storage   | `src/merkle/*`, `src/crdt/*` | SHA-256 content-addressed store, Merkle roots/diff, LWW CRDT register map                                                     |
+| Sync      | `src/sync/*`                 | Encrypted announce → delta batch → merge → ack, with a `sync:event` listener                                                  |
+| Rules     | `src/rule-engine/*`          | Rule parser, condition matcher, action dispatcher, engine, and the sync/CRDT bridge                                           |
 
 ## Crypto model
 
@@ -95,6 +95,8 @@ npm install
 
 npm test               # 87 vitest tests (unit, integration, property-based)
 npm run test:coverage  # v8 coverage report in coverage/ + threshold gate
+npm run lint           # ESLint (flat config, TypeScript rules)
+npm run format:check   # Prettier check (npm run format to rewrite)
 npm run typecheck      # tsc over src/ and tests/
 npm run rule-example   # rule engine walkthrough
 npm run example        # two-peer encrypted sync simulation
@@ -107,10 +109,16 @@ and 80% branches over `src/`; `npm run test:coverage` exits non-zero below that,
 so CI fails on a regression.
 
 CI (`.github/workflows/ci.yml`) runs on every push to `main` and every pull
-request: `npm ci` → typecheck → tests with coverage → build, on Node 20 and 22.
+request: `npm ci` → lint → format check → typecheck → tests with coverage →
+build, on Node 20 and 22.
 Each job uploads its report as the `coverage-node-20` / `coverage-node-22`
 artifact (14 days), and pull requests from this repository get a single sticky
 comment with the coverage table, updated in place on each push.
+
+Pull requests also get a `diff coverage` job: it compares `coverage/lcov.info`
+against the merge base and fails when fewer than 90% of the **new or changed**
+lines are covered, so untouched legacy code cannot block a PR. Its report is
+written to the workflow run summary.
 
 ## Notes
 

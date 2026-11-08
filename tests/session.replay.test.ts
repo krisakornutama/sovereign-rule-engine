@@ -14,11 +14,7 @@ function createSessionPair(): {
   const alice = createIdentity();
   const bob = createIdentity();
   const pending = createHandshakeInit('peer-alice', alice, 'peer-bob');
-  const { response, session: responder } = acceptHandshake(
-    pending.init,
-    'peer-bob',
-    bob
-  );
+  const { response, session: responder } = acceptHandshake(pending.init, 'peer-bob', bob);
   const initiator = finalizeHandshake(pending, response, alice);
   return { initiator, responder };
 }
@@ -47,9 +43,7 @@ describe('SecureSession ciphertext round trip', () => {
     ).toThrow();
 
     const other = createSessionPair();
-    expect(() => other.responder.decrypt(envelope)).toThrow(
-      /different session/
-    );
+    expect(() => other.responder.decrypt(envelope)).toThrow(/different session/);
   });
 });
 
@@ -72,9 +66,7 @@ describe('replay protection (64-message sliding window)', () => {
     expect(responder.decryptToText(envelopes[0]!)).toBe('msg-0');
     expect(responder.decryptToText(envelopes[100]!)).toBe('msg-100');
 
-    expect(() => responder.decrypt(envelopes[10]!)).toThrow(
-      /outside of the sliding window/
-    );
+    expect(() => responder.decrypt(envelopes[10]!)).toThrow(/outside of the sliding window/);
   });
 
   it('still accepts an unseen gap that is inside the window', () => {
@@ -98,8 +90,6 @@ describe('replay protection (64-message sliding window)', () => {
     );
 
     responder.decrypt(envelopes[64]!);
-    expect(() => responder.decrypt(envelopes[0]!)).toThrow(
-      /outside of the sliding window/
-    );
+    expect(() => responder.decrypt(envelopes[0]!)).toThrow(/outside of the sliding window/);
   });
 });

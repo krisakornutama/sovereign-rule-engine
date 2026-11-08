@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import {
-  MemoryCRDTStore,
-  compareEntries,
-  type CRDTDelta,
-  type CRDTEntry,
-} from '../src/index.js';
+import { MemoryCRDTStore, compareEntries, type CRDTDelta, type CRDTEntry } from '../src/index.js';
 
 /**
  * Property-based convergence checks for the LWW register map.
@@ -40,9 +35,7 @@ function applyInOrder(
   deltas: ReadonlyArray<CRDTDelta>,
   ranks: ReadonlyArray<number>
 ): void {
-  const order = deltas
-    .map((_, index) => index)
-    .sort((a, b) => ranks[a]! - ranks[b]! || a - b);
+  const order = deltas.map((_, index) => index).sort((a, b) => ranks[a]! - ranks[b]! || a - b);
   for (const index of order) {
     store.applyDelta(deltas[index]!);
   }
@@ -92,9 +85,7 @@ describe('CRDT convergence properties', () => {
   it('matches the compareEntries reference model after any permutation', () => {
     const scenario = fc
       .array(entryArbitrary, { maxLength: 24 })
-      .chain((entries) =>
-        fc.tuple(fc.constant(entries), permutationArbitrary(entries.length))
-      );
+      .chain((entries) => fc.tuple(fc.constant(entries), permutationArbitrary(entries.length)));
 
     fc.assert(
       fc.property(scenario, ([entries, ranks]) => {
@@ -119,9 +110,7 @@ describe('CRDT convergence properties', () => {
   it('is idempotent when every delta is delivered twice', () => {
     const scenario = fc
       .array(entryArbitrary, { maxLength: 24 })
-      .chain((entries) =>
-        fc.tuple(fc.constant(entries), permutationArbitrary(entries.length))
-      );
+      .chain((entries) => fc.tuple(fc.constant(entries), permutationArbitrary(entries.length)));
 
     fc.assert(
       fc.property(scenario, ([entries, ranks]) => {
@@ -140,15 +129,13 @@ describe('CRDT convergence properties', () => {
   });
 
   it('keeps replicas convergent when merging multi-entry batches in any order', () => {
-    const scenario = fc
-      .array(entryArbitrary, { maxLength: 24 })
-      .chain((entries) => {
-        const batches: CRDTDelta[] = [];
-        for (let index = 0; index < entries.length; index += 3) {
-          batches.push({ entries: entries.slice(index, index + 3) });
-        }
-        return fc.tuple(fc.constant(batches), permutationArbitrary(batches.length));
-      });
+    const scenario = fc.array(entryArbitrary, { maxLength: 24 }).chain((entries) => {
+      const batches: CRDTDelta[] = [];
+      for (let index = 0; index < entries.length; index += 3) {
+        batches.push({ entries: entries.slice(index, index + 3) });
+      }
+      return fc.tuple(fc.constant(batches), permutationArbitrary(batches.length));
+    });
 
     fc.assert(
       fc.property(scenario, ([batches, ranks]) => {

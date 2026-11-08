@@ -61,8 +61,12 @@ describe('compareEntries total order', () => {
     expect(compareEntries(entry({ timestamp: 101 }), entry({ timestamp: 100 }))).toBeGreaterThan(0);
     expect(compareEntries(entry({ timestamp: 99 }), entry({ timestamp: 100 }))).toBeLessThan(0);
 
-    expect(compareEntries(entry({ peerId: 'peer-b' }), entry({ peerId: 'peer-a' }))).toBeGreaterThan(0);
-    expect(compareEntries(entry({ peerId: 'peer-a' }), entry({ peerId: 'peer-b' }))).toBeLessThan(0);
+    expect(
+      compareEntries(entry({ peerId: 'peer-b' }), entry({ peerId: 'peer-a' }))
+    ).toBeGreaterThan(0);
+    expect(compareEntries(entry({ peerId: 'peer-a' }), entry({ peerId: 'peer-b' }))).toBeLessThan(
+      0
+    );
 
     expect(compareEntries(entry({ value: 2 }), entry({ value: 1 }))).toBeGreaterThan(0);
     expect(compareEntries(entry({ value: 1 }), entry({ value: 2 }))).toBeLessThan(0);
@@ -71,7 +75,19 @@ describe('compareEntries total order', () => {
   });
 
   it('is antisymmetric for arbitrary value pairs', () => {
-    const values: unknown[] = [null, undefined, 0, -0, 1, 'a', 'b', true, [1], { a: 1 }, new Uint8Array([1])];
+    const values: unknown[] = [
+      null,
+      undefined,
+      0,
+      -0,
+      1,
+      'a',
+      'b',
+      true,
+      [1],
+      { a: 1 },
+      new Uint8Array([1]),
+    ];
     for (const left of values) {
       for (const right of values) {
         const forward = compareEntries(entry({ value: left }), entry({ value: right }));

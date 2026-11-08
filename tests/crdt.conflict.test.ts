@@ -1,16 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import {
-  MemoryCRDTStore,
-  compareEntries,
-  type CRDTEntry,
-} from '../src/index.js';
+import { MemoryCRDTStore, compareEntries, type CRDTEntry } from '../src/index.js';
 
-function entry(
-  key: string,
-  value: unknown,
-  timestamp: number,
-  peerId: string
-): CRDTEntry {
+function entry(key: string, value: unknown, timestamp: number, peerId: string): CRDTEntry {
   return { key, value, timestamp, peerId };
 }
 

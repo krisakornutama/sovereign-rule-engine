@@ -1,9 +1,4 @@
-import type {
-  ActionContext,
-  ActionDispatcher,
-  Rule,
-  RuleEvent,
-} from './types.js';
+import type { ActionContext, ActionDispatcher, Rule, RuleEvent } from './types.js';
 
 type ActionHandler = (context: ActionContext) => void | Promise<void>;
 
@@ -25,9 +20,7 @@ export class ActionDispatcherImpl implements ActionDispatcher {
   async dispatch(context: ActionContext): Promise<void> {
     const handler = this.handlers.get(context.rule.action.type);
     if (!handler) {
-      throw new Error(
-        `No handler registered for action type: ${context.rule.action.type}`
-      );
+      throw new Error(`No handler registered for action type: ${context.rule.action.type}`);
     }
     await handler(context);
   }

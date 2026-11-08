@@ -71,9 +71,7 @@ async function main(): Promise<void> {
   console.log(`    A root: ${rootA}`);
   console.log(`    B root: ${rootB}`);
   console.log(
-    rootA === rootB
-      ? `    ✓ converged (${storeB.size} entry)\n`
-      : '    ✗ divergence detected\n'
+    rootA === rootB ? `    ✓ converged (${storeB.size} entry)\n` : '    ✗ divergence detected\n'
   );
 
   console.log('[6] Offline rule engine (reacts to synced deltas)');

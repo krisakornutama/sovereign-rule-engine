@@ -1,10 +1,4 @@
-import type {
-  ActionDispatcher,
-  Rule,
-  RuleEngine,
-  RuleEngineConfig,
-  RuleEvent,
-} from './types.js';
+import type { ActionDispatcher, Rule, RuleEngine, RuleEngineConfig, RuleEvent } from './types.js';
 import { dispatchAction } from './dispatcher.js';
 import { matchesEvent } from './matcher.js';
 import { parseRuleDefinition, type RuleDefinition } from './parser.js';

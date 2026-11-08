@@ -38,9 +38,7 @@ describe('SimpleRuleEngine lifecycle', () => {
     expect(engine.getRules()[0]?.name).toBe('Renamed');
     expect(engine.getRules()[0]?.priority).toBe(5);
 
-    expect(() =>
-      engine.updateRule({ ...rule, id: 'missing' })
-    ).toThrow(/Unknown rule/);
+    expect(() => engine.updateRule({ ...rule, id: 'missing' })).toThrow(/Unknown rule/);
 
     engine.removeRule('one');
     expect(engine.getRules()).toHaveLength(0);

@@ -3,10 +3,7 @@ import {
   sign as edSign,
   verify as edVerify,
 } from '@stablelib/ed25519';
-import {
-  generateKeyPair as generateX25519KeyPair,
-  sharedKey,
-} from '@stablelib/x25519';
+import { generateKeyPair as generateX25519KeyPair, sharedKey } from '@stablelib/x25519';
 import { XChaCha20Poly1305 } from '@stablelib/xchacha20poly1305';
 import { SHA256 } from '@stablelib/sha256';
 import { HKDF } from '@stablelib/hkdf';
@@ -309,9 +306,7 @@ export class SecureSession {
 
   private additionalData(): Uint8Array {
     const [first, second] = [this.localPeerId, this.remotePeerId].sort();
-    return utf8ToBytes(
-      `sovereign-origin/envelope/v1|${this.sessionId}|${first}|${second}`
-    );
+    return utf8ToBytes(`sovereign-origin/envelope/v1|${this.sessionId}|${first}|${second}`);
   }
 
   private remember(sequence: number): void {

@@ -48,7 +48,11 @@ describe('Merkle hashing and CAS', () => {
   });
 
   it('builds order-stable roots and diffs leaf sets', () => {
-    const leaves = [hashData(utf8ToBytes('a')), hashData(utf8ToBytes('b')), hashData(utf8ToBytes('c'))];
+    const leaves = [
+      hashData(utf8ToBytes('a')),
+      hashData(utf8ToBytes('b')),
+      hashData(utf8ToBytes('c')),
+    ];
 
     expect(merkleRoot([])).toBe(hashData(new Uint8Array(0)));
     expect(merkleRoot([leaves[0]!])).toBe(leaves[0]);
@@ -103,9 +107,9 @@ describe('in-memory transport', () => {
     expect((closed as TransportError).code).toBe('peer-closed');
 
     // A closed peer is unregistered, so the network can no longer reach it.
-    expect(() =>
-      network.deliver({ from: alice, to: alice, payload: new Uint8Array() })
-    ).toThrow(/not connected/);
+    expect(() => network.deliver({ from: alice, to: alice, payload: new Uint8Array() })).toThrow(
+      /not connected/
+    );
     expect(bobTransport.localPeerId).toBe(bob);
   });
 });

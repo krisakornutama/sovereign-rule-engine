@@ -3,8 +3,7 @@
  * so the module runs unchanged on Node.js and in the browser / PWA.
  */
 
-const BASE64_ALPHABET =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 const BASE64_LOOKUP: Record<string, number> = (() => {
   const table: Record<string, number> = {};
