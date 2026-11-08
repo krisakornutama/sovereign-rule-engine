@@ -1,5 +1,7 @@
 # sovereign-rule-engine
 
+[![CI](https://github.com/krisakornutama/sovereign-rule-engine/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/krisakornutama/sovereign-rule-engine/actions/workflows/ci.yml)
+
 Offline-first decision layer for **Sovereign OS**: an if-this-then-that rule engine
 running on top of a peer-to-peer, end-to-end-encrypted local sync stack.
 
@@ -82,6 +84,30 @@ npm run rule-example   # standalone rule engine walkthrough
 npm run example        # two-peer encrypted sync + rule reaction
 npm run build          # emit dist/
 ```
+
+## Development
+
+Requirements: Node.js 20+ for the toolchain (CI runs the Node 20 and 22 matrix).
+The published library itself targets Node 18+ and modern browsers.
+
+```bash
+npm install
+
+npm test               # 74 vitest tests (unit, integration, property-based)
+npm run test:coverage  # v8 coverage report in coverage/ + threshold gate
+npm run typecheck      # tsc over src/ and tests/
+npm run rule-example   # rule engine walkthrough
+npm run example        # two-peer encrypted sync simulation
+npm run build          # emit dist/ with declarations
+```
+
+Coverage is reported as `text`, `lcov` and `json-summary` in `coverage/`
+(git-ignored). The gate in `vitest.config.ts` is 90% lines/statements/functions
+and 80% branches over `src/`; `npm run test:coverage` exits non-zero below that,
+so CI fails on a regression.
+
+CI (`.github/workflows/ci.yml`) runs on every push to `main` and every pull
+request: `npm ci` → typecheck → tests with coverage → build, on Node 20 and 22.
 
 ## Notes
 
