@@ -77,6 +77,18 @@ function deriveSessionKeys(
   };
 }
 
+/**
+ * X25519 returns an all-zero secret for low-order public points, which would
+ * silently derive a key an attacker knows. A truthiness check can never catch
+ * that (a byte array is always truthy), so inspect the bytes instead.
+ */
+function assertUsableSharedSecret(secret: Uint8Array): Uint8Array {
+  if (secret.every((byte) => byte === 0)) {
+    throw new Error('X25519 key agreement produced an all-zero shared secret');
+  }
+  return secret;
+}
+
 export interface PendingHandshake {
   readonly remotePeerId: string;
   readonly init: HandshakeInit;
@@ -129,10 +141,7 @@ export function acceptHandshake(
   }
 
   const ephemeral = generateX25519KeyPair();
-  const sharedSecret = sharedKey(ephemeral.secretKey, initiatorEphemeral);
-  if (!sharedSecret) {
-    throw new Error('X25519 key agreement produced no shared secret');
-  }
+  const sharedSecret = assertUsableSharedSecret(sharedKey(ephemeral.secretKey, initiatorEphemeral));
 
   const salt = sha256(concatBytes(initiatorEphemeral, ephemeral.publicKey));
   const keys = deriveSessionKeys(sharedSecret, salt);
@@ -191,10 +200,9 @@ export function finalizeHandshake(
     throw new Error('Handshake response signature verification failed');
   }
 
-  const sharedSecret = sharedKey(pending.ephemeralSecretKey, responderEphemeral);
-  if (!sharedSecret) {
-    throw new Error('X25519 key agreement produced no shared secret');
-  }
+  const sharedSecret = assertUsableSharedSecret(
+    sharedKey(pending.ephemeralSecretKey, responderEphemeral)
+  );
 
   const salt = sha256(concatBytes(pending.ephemeralPublicKey, responderEphemeral));
   const keys = deriveSessionKeys(sharedSecret, salt);

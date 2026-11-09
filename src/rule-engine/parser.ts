@@ -18,7 +18,7 @@ export interface RuleDefinition {
   };
 }
 
-const OPERATOR_MAP: Record<string, RuleOperator> = {
+const OPERATOR_MAP: Record<string, RuleOperator | undefined> = {
   eq: 'eq',
   '==': 'eq',
   '===': 'eq',

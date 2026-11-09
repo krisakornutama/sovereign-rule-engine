@@ -5,8 +5,8 @@
 
 const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
-const BASE64_LOOKUP: Record<string, number> = (() => {
-  const table: Record<string, number> = {};
+const BASE64_LOOKUP: Record<string, number | undefined> = (() => {
+  const table: Record<string, number | undefined> = {};
   for (let i = 0; i < BASE64_ALPHABET.length; i += 1) {
     table[BASE64_ALPHABET[i] as string] = i;
   }
@@ -17,8 +17,9 @@ export function toBase64(bytes: Uint8Array): string {
   let out = '';
   for (let i = 0; i < bytes.length; i += 3) {
     const b0 = bytes[i] as number;
-    const b1 = bytes[i + 1];
-    const b2 = bytes[i + 2];
+    // The last group may be short, so the trailing bytes really can be missing.
+    const b1 = bytes.at(i + 1);
+    const b2 = bytes.at(i + 2);
 
     out += BASE64_ALPHABET[b0 >> 2];
     out += BASE64_ALPHABET[((b0 & 0x03) << 4) | ((b1 ?? 0) >> 4)];
@@ -105,7 +106,8 @@ export function bytesToUtf8(bytes: Uint8Array): string {
 }
 
 export function randomBytes(length: number): Uint8Array {
-  const webCrypto = globalThis.crypto;
+  // Browsers always expose crypto; older Node versions and bare runtimes do not.
+  const webCrypto = globalThis.crypto as Crypto | undefined;
   if (!webCrypto || typeof webCrypto.getRandomValues !== 'function') {
     throw new Error('WebCrypto getRandomValues is not available in this runtime');
   }

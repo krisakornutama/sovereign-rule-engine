@@ -93,7 +93,7 @@ The published library itself targets Node 18+ and modern browsers.
 ```bash
 npm install
 
-npm test               # 87 vitest tests (unit, integration, property-based)
+npm test               # 88 vitest tests (unit, integration, property-based)
 npm run test:coverage  # v8 coverage report in coverage/ + threshold gate
 npm run lint           # ESLint (flat config, type-aware TS rules)
 npm run format:check   # Prettier check (npm run format to rewrite)
@@ -111,8 +111,10 @@ so CI fails on a regression.
 CI (`.github/workflows/ci.yml`) runs on every push to `main` and every pull
 request: `npm ci` → lint → format check → typecheck → tests with coverage →
 build, on Node 20 and 22. ESLint runs type-aware rules over `src/` and `tests/`
-(`@typescript-eslint/no-floating-promises`, `await-thenable`), so a dropped
-promise fails the build instead of surfacing later as a flaky test.
+(`@typescript-eslint/no-floating-promises`, `await-thenable`,
+`no-misused-promises`, `no-unnecessary-condition`), so a dropped promise, an
+async callback handed to a void handler, or a condition the types prove is dead
+fails the build instead of surfacing later as a flaky test.
 Each leg uploads its report as the `coverage-node-20` / `coverage-node-22`
 artifact (14 days).
 
@@ -122,6 +124,12 @@ a pinned `diff-cover` (11.0.1) against the merge base and fails when fewer than
 90% of the **new or changed** lines are covered, so untouched legacy code cannot
 block a PR. The gate value lives once in the workflow `env`, and the report is
 uploaded as the `diff-coverage-report` artifact and written to the run summary.
+
+The diff-cover virtualenv is cached under a key built from the runner OS, the
+Python version and `DIFF_COVER_VERSION`, so the pip install step runs only when
+that key changes; otherwise the job unpacks the ready venv and goes straight to
+the report. `main` requires the `diff coverage (changed lines)` check, so a PR
+with untested changed lines shows `BLOCKED` until it is fixed.
 
 A final `report` job waits for both and posts a single sticky comment with the
 coverage table and the changed-lines result, updated in place on every push —

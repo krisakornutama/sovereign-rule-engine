@@ -75,7 +75,9 @@ export class LocalSyncEngine {
     this.started = true;
   }
 
-  on(event: 'sync:event', listener: (event: SyncEvent) => void): void {
+  // `event` stays a plain string because this is the runtime filter for the
+  // emitter contract; callers pass the documented 'sync:event' name.
+  on(event: string, listener: (event: SyncEvent) => void): void {
     if (event === 'sync:event') {
       this.listeners.push(listener);
     }

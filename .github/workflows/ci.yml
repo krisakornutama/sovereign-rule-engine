@@ -81,13 +81,31 @@ jobs:
           name: coverage-node-20
           path: coverage
 
+      - name: Read Python version
+        id: python
+        run: echo "version=$(python3 -c 'import platform; print(platform.python_version())')" >> "$GITHUB_OUTPUT"
+
+      # The interpreter and the pinned diff-cover only change when the runner
+      # image or DIFF_COVER_VERSION changes, so cache the finished venv: the
+      # install step then runs on a miss only, not on every PR.
+      - name: Restore diff-cover environment
+        id: diff-cover-cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/diff-cover-venv
+          key: diff-cover-${{ runner.os }}-py${{ steps.python.outputs.version }}-${{ env.DIFF_COVER_VERSION }}
+
+      - name: Install diff-cover (cache miss only)
+        if: steps.diff-cover-cache.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/diff-cover-venv"
+          "$RUNNER_TEMP/diff-cover-venv/bin/pip" install --quiet "diff-cover==$DIFF_COVER_VERSION"
+
       - name: Diff coverage for changed lines
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
           set +e
-          python3 -m venv "$RUNNER_TEMP/diff-cover-venv"
-          "$RUNNER_TEMP/diff-cover-venv/bin/pip" install --quiet "diff-cover==$DIFF_COVER_VERSION"
           "$RUNNER_TEMP/diff-cover-venv/bin/diff-cover" coverage/lcov.info \
             --compare-branch "origin/$BASE_REF" \
             --fail-under="$DIFF_COVERAGE_MIN" \

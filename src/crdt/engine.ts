@@ -12,7 +12,9 @@ export class MemoryCRDTStore {
   private readonly entries = new Map<string, CRDTEntry>();
   private readonly changeListeners: Array<(delta: CRDTDelta) => void> = [];
 
-  on(event: 'crdt:change', listener: (delta: CRDTDelta) => void): void {
+  // `event` stays a plain string because this is the runtime filter for the
+  // emitter contract; callers pass the documented 'crdt:change' name.
+  on(event: string, listener: (delta: CRDTDelta) => void): void {
     if (event === 'crdt:change') {
       this.changeListeners.push(listener);
     }

@@ -1,10 +1,15 @@
+import { sign as edSign } from '@stablelib/ed25519';
 import { describe, expect, it } from 'vitest';
 import {
   acceptHandshake,
+  concatBytes,
   createHandshakeInit,
   createIdentity,
   finalizeHandshake,
+  randomBytes,
+  toBase64,
   type SecureSession,
+  utf8ToBytes,
 } from '../src/index.js';
 
 function createSessionPair(): {
@@ -91,5 +96,30 @@ describe('replay protection (64-message sliding window)', () => {
 
     responder.decrypt(envelopes[64]!);
     expect(() => responder.decrypt(envelopes[0]!)).toThrow(/outside of the sliding window/);
+  });
+});
+
+describe('handshake input validation', () => {
+  it('rejects a low-order ephemeral key instead of deriving an all-zero secret', () => {
+    const initiator = createIdentity();
+    const responder = createIdentity();
+    const zeroEphemeral = new Uint8Array(32);
+    const nonce = randomBytes(32);
+    const payload = concatBytes(
+      utf8ToBytes('sovereign-origin/handshake/init/v1'),
+      initiator.publicKey,
+      zeroEphemeral,
+      nonce
+    );
+
+    const init = {
+      peerId: 'peer-alice',
+      identityPublicKey: toBase64(initiator.publicKey),
+      ephemeralPublicKey: toBase64(zeroEphemeral),
+      nonce: toBase64(nonce),
+      signature: toBase64(edSign(initiator.secretKey, payload)),
+    };
+
+    expect(() => acceptHandshake(init, 'peer-bob', responder)).toThrow(/all-zero shared secret/);
   });
 });

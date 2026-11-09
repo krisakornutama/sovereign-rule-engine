@@ -39,6 +39,10 @@ export default tseslint.config(
       '@typescript-eslint/no-floating-promises': 'error',
       // An `await` on a non-thenable is always a bug.
       '@typescript-eslint/await-thenable': 'error',
+      // Async callbacks handed to void-returning handlers (event emitters,
+      // timers) and conditions the types prove are always true or always false.
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/no-unnecessary-condition': 'error',
     },
   },
   {
