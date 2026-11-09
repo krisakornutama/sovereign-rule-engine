@@ -439,3 +439,32 @@ describe('RuleEngineBridge wiring options', () => {
     expect((captured[0] as Error).message).toMatch(/No handler registered/);
   });
 });
+
+describe('RuleEngineBridge default error reporting', () => {
+  it('falls back to console.error when no onError handler is configured', async () => {
+    const { peerB, syncA, syncB } = createPair();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const rules = new SimpleRuleEngine({ actionDispatcher: new ActionDispatcherImpl() });
+      rules.addRuleFromDefinition({
+        id: 'connected',
+        name: 'Connected',
+        eventTypes: ['PEER_CONNECTED'],
+        condition: { field: 'remotePeerId', operator: 'exists', value: null },
+        action: { type: 'unregistered' },
+      });
+      new RuleEngineBridge({ ruleEngine: rules, syncEngine: syncB });
+
+      await syncA.connect(peerB);
+      await flush();
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const [label, error] = errorSpy.mock.calls[0] ?? [];
+      expect(label).toBe('[rule-engine]');
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/No handler registered/);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+});
