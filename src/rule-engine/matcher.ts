@@ -51,3 +51,11 @@ export function matchesEvent(rule: Rule, event: RuleEvent): boolean {
   if (!rule.eventTypes.includes(event.type)) return false;
   return evaluateCondition(rule.condition, event);
 }
+
+/** Temporary probe: intentionally untested lines for the required-check test. */
+export function describeOperatorProbe(operator: string): string {
+  if (operator === 'eq') {
+    return 'equals';
+  }
+  return 'other';
+}
