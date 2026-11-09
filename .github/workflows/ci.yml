@@ -60,6 +60,40 @@ jobs:
           path: coverage/
           retention-days: 14
 
+  # A pull request can only reuse caches created on its own ref, so main primes
+  # the diff-cover venv once per Python + diff-cover version. PR runs restore it
+  # from the base branch and skip pip entirely.
+  prime-diff-cover:
+    name: prime diff-cover environment
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read Python version
+        id: python
+        run: echo "version=$(python3 -c 'import platform; print(platform.python_version())')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore diff-cover environment
+        id: diff-cover-cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/diff-cover-venv
+          key: diff-cover-${{ runner.os }}-py${{ steps.python.outputs.version }}-${{ env.DIFF_COVER_VERSION }}
+
+      - name: Install diff-cover (cache miss only)
+        if: steps.diff-cover-cache.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/diff-cover-venv"
+          "$RUNNER_TEMP/diff-cover-venv/bin/pip" install --quiet "diff-cover==$DIFF_COVER_VERSION"
+
+      # Save immediately: the action's own post step only saves on success.
+      - name: Save diff-cover environment
+        if: steps.diff-cover-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/diff-cover-venv
+          key: diff-cover-${{ runner.os }}-py${{ steps.python.outputs.version }}-${{ env.DIFF_COVER_VERSION }}
+
   # Only the lines a PR adds or changes have to be tested; untouched legacy
   # code cannot drag a pull request down. It reuses the Node 20 coverage
   # artifact instead of running the suite a third time.
@@ -86,8 +120,7 @@ jobs:
         run: echo "version=$(python3 -c 'import platform; print(platform.python_version())')" >> "$GITHUB_OUTPUT"
 
       # The interpreter and the pinned diff-cover only change when the runner
-      # image or DIFF_COVER_VERSION changes, so cache the finished venv: the
-      # install step then runs on a miss only, not on every PR.
+      # image or DIFF_COVER_VERSION changes, so restore the venv main primed.
       - name: Restore diff-cover environment
         id: diff-cover-cache
         uses: actions/cache@v6
@@ -100,6 +133,16 @@ jobs:
         run: |
           python3 -m venv "$RUNNER_TEMP/diff-cover-venv"
           "$RUNNER_TEMP/diff-cover-venv/bin/pip" install --quiet "diff-cover==$DIFF_COVER_VERSION"
+
+      # A failing gate must still warm the cache for this PR's re-runs, so save
+      # here instead of relying on the post step that only runs on success.
+      - name: Save diff-cover environment
+        if: steps.diff-cover-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/diff-cover-venv
+          key: diff-cover-${{ runner.os }}-py${{ steps.python.outputs.version }}-${{ env.DIFF_COVER_VERSION }}
 
       - name: Diff coverage for changed lines
         env:
