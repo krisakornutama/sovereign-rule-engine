@@ -126,10 +126,13 @@ block a PR. The gate value lives once in the workflow `env`, and the report is
 uploaded as the `diff-coverage-report` artifact and written to the run summary.
 
 The diff-cover virtualenv is cached under a key built from the runner OS, the
-Python version and `DIFF_COVER_VERSION`, so the pip install step runs only when
-that key changes; otherwise the job unpacks the ready venv and goes straight to
-the report. `main` requires the `diff coverage (changed lines)` check, so a PR
-with untested changed lines shows `BLOCKED` until it is fixed.
+Python version and `DIFF_COVER_VERSION`. Because GitHub only lets a pull request
+restore caches from its own ref or the base branch, a `prime diff-cover
+environment` job on `main` builds and saves the venv; PR runs then restore it
+and skip pip entirely. The save is explicit rather than the action's post step
+(which only runs on success), so a PR whose gate fails still warms its own
+re-runs. `main` requires the `diff coverage (changed lines)` check, so a PR with
+untested changed lines shows `BLOCKED` until it is fixed.
 
 A final `report` job waits for both and posts a single sticky comment with the
 coverage table and the changed-lines result, updated in place on every push —
