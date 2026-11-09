@@ -379,3 +379,63 @@ describe('sync engine lifecycle', () => {
     expect(syncA.getSession(peerB)).toBeUndefined();
   });
 });
+
+describe('RuleEngineBridge wiring options', () => {
+  it('respects autoSubscribe: false and subscribes only once', async () => {
+    const { peerB, storeA, syncA, syncB } = createPair();
+    const dispatcherB = recordingDispatcher();
+    const rulesB = new SimpleRuleEngine({ actionDispatcher: dispatcherB.dispatcher });
+    rulesB.addRuleFromDefinition({
+      id: 'delta-merged',
+      name: 'DeltaMerged',
+      eventTypes: ['DELTA_MERGED'],
+      condition: { field: 'entryCount', operator: '>', value: 0 },
+      action: { type: 'log' },
+    });
+    const bridge = new RuleEngineBridge({
+      ruleEngine: rulesB,
+      crdtStore: syncB.crdtStore,
+      syncEngine: syncB,
+      autoSubscribe: false,
+    });
+
+    await syncA.connect(peerB);
+    storeA.set('config:theme', 'dark', 'peer-a', 10);
+    await syncA.announce(peerB);
+    await syncA.sendDeltaBatch(peerB);
+    await flush();
+    expect(dispatcherB.fired).toEqual([]);
+
+    bridge.subscribe();
+    bridge.subscribe();
+    storeA.set('config:locale', 'th', 'peer-a', 11);
+    await syncA.sendDeltaBatch(peerB);
+    await flush();
+    expect(dispatcherB.fired).toEqual(['DeltaMerged:DELTA_MERGED']);
+  });
+
+  it('routes bridge failures to the configured onError handler', async () => {
+    const { peerB, syncA, syncB } = createPair();
+    const captured: unknown[] = [];
+    const rules = new SimpleRuleEngine({ actionDispatcher: new ActionDispatcherImpl() });
+    rules.addRuleFromDefinition({
+      id: 'connected',
+      name: 'Connected',
+      eventTypes: ['PEER_CONNECTED'],
+      condition: { field: 'remotePeerId', operator: 'exists', value: null },
+      action: { type: 'unregistered' },
+    });
+    new RuleEngineBridge({
+      ruleEngine: rules,
+      syncEngine: syncB,
+      onError: (error) => captured.push(error),
+    });
+
+    await syncA.connect(peerB);
+    await flush();
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toBeInstanceOf(Error);
+    expect((captured[0] as Error).message).toMatch(/No handler registered/);
+  });
+});

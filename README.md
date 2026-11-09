@@ -93,7 +93,7 @@ The published library itself targets Node 18+ and modern browsers.
 ```bash
 npm install
 
-npm test               # 96 vitest tests (unit, integration, property-based)
+npm test               # 98 vitest tests (unit, integration, property-based)
 npm run test:coverage  # v8 coverage report in coverage/ + threshold gate
 npm run lint           # ESLint (flat config, type-aware TS rules)
 npm run format:check   # Prettier check (npm run format to rewrite)
