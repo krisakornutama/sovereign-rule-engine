@@ -92,19 +92,22 @@ export class LocalSyncEngine {
     const pending = createHandshakeInit(this.peerId, this.identity, remotePeerId);
     this.pending.set(remotePeerId, pending);
 
-    // The executor below runs synchronously, so the real reject is in place
-    // before the timeout can fire; the default keeps the callback total without
-    // an unreachable undefined check in `finally`.
-    let rejectHandshake: (error: Error) => void = () => {};
+    // The abort signal lets the timeout carry its own reject: the handle is a
+    // plain const, so cleanup is unconditional and no function stays uncalled.
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), HANDSHAKE_TIMEOUT_MS);
     const waitForSession = new Promise<SecureSession>((resolve, reject) => {
-      rejectHandshake = reject;
       this.connectionWaiters.set(remotePeerId, resolve);
+      abort.signal.addEventListener(
+        'abort',
+        () => {
+          this.connectionWaiters.delete(remotePeerId);
+          this.pending.delete(remotePeerId);
+          reject(new Error(`Handshake with ${remotePeerId} timed out`));
+        },
+        { once: true }
+      );
     });
-    const timer = setTimeout(() => {
-      this.connectionWaiters.delete(remotePeerId);
-      this.pending.delete(remotePeerId);
-      rejectHandshake(new Error(`Handshake with ${remotePeerId} timed out`));
-    }, HANDSHAKE_TIMEOUT_MS);
 
     try {
       await this.transport.sendFrame({
