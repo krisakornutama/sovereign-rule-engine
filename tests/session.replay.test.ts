@@ -123,3 +123,40 @@ describe('handshake input validation', () => {
     expect(() => acceptHandshake(init, 'peer-bob', responder)).toThrow(/all-zero shared secret/);
   });
 });
+
+describe('session input validation', () => {
+  it('rejects an init whose signature does not verify', () => {
+    const alice = createIdentity();
+    const bob = createIdentity();
+    const pending = createHandshakeInit('peer-alice', alice, 'peer-bob');
+    const forgedInit = { ...pending.init, signature: toBase64(new Uint8Array(64)) };
+
+    expect(() => acceptHandshake(forgedInit, 'peer-bob', bob)).toThrow(
+      'Handshake init signature verification failed'
+    );
+  });
+
+  it('rejects a response whose signature does not verify', () => {
+    const alice = createIdentity();
+    const bob = createIdentity();
+    const pending = createHandshakeInit('peer-alice', alice, 'peer-bob');
+    const { response } = acceptHandshake(pending.init, 'peer-bob', bob);
+    const forgedResponse = { ...response, signature: toBase64(new Uint8Array(64)) };
+
+    expect(() => finalizeHandshake(pending, forgedResponse, alice)).toThrow(
+      'Handshake response signature verification failed'
+    );
+  });
+
+  it('rejects envelopes with a foreign version or a wrong nonce length', () => {
+    const { initiator } = createSessionPair();
+    const envelope = initiator.encrypt(new Uint8Array([1, 2, 3]));
+
+    expect(() => initiator.decrypt({ ...envelope, version: 2 })).toThrow(
+      /Unsupported envelope version/
+    );
+    expect(() => initiator.decrypt({ ...envelope, nonce: toBase64(new Uint8Array(16)) })).toThrow(
+      /Nonce must be 24 bytes/
+    );
+  });
+});
