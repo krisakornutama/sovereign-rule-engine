@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   ActionDispatcherImpl,
   InMemoryNetwork,
@@ -7,11 +7,15 @@ import {
   MemoryCRDTStore,
   RuleEngineBridge,
   SimpleRuleEngine,
+  createHandshakeInit,
   createIdentity,
+  utf8ToBytes,
   type ActionContext,
   type ActionDispatcher,
   type PeerId,
   type SyncEvent,
+  type TransportFrame,
+  type TransportLayer,
 } from '../src/index.js';
 
 function flush(): Promise<void> {
@@ -220,5 +224,158 @@ describe('RuleEngineBridge', () => {
     await expect(
       bridge.emit({ type: 'PEER_CONNECTED', payload: { remotePeerId: 'peer-z' }, timestamp: 1 })
     ).rejects.toThrow(/No handler registered/);
+  });
+});
+
+/** Transport that records frames and can fail on demand; nothing is delivered back. */
+class StubTransport implements TransportLayer {
+  readonly localPeerId: PeerId;
+  readonly frames: TransportFrame[] = [];
+  private readonly failure: unknown;
+  private readonly handlers: Array<(frame: TransportFrame) => void> = [];
+
+  constructor(localPeerId: PeerId, failure?: unknown) {
+    this.localPeerId = localPeerId;
+    this.failure = failure;
+  }
+
+  sendFrame(frame: TransportFrame): Promise<void> {
+    if (this.failure !== undefined) return Promise.reject(this.failure);
+    this.frames.push(frame);
+    return Promise.resolve();
+  }
+
+  onFrame(handler: (frame: TransportFrame) => void): void {
+    this.handlers.push(handler);
+  }
+
+  deliver(frame: TransportFrame): void {
+    for (const handler of [...this.handlers]) handler(frame);
+  }
+
+  close(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+function deliverWire(
+  transport: StubTransport,
+  to: PeerId,
+  from: PeerId,
+  message: Record<string, unknown>
+): void {
+  transport.deliver({ from, to, payload: utf8ToBytes(JSON.stringify(message)) });
+}
+
+describe('sync engine edge cases', () => {
+  it('starts once, ignores other event names and treats an empty batch as a no-op', async () => {
+    const network = new InMemoryNetwork();
+    const peerA: PeerId = 'peer-a';
+    const peerB: PeerId = 'peer-b';
+    const syncA = new LocalSyncEngine({
+      peerId: peerA,
+      identity: createIdentity(),
+      transport: new InMemoryTransport(network, peerA),
+    });
+    const syncB = new LocalSyncEngine({
+      peerId: peerB,
+      identity: createIdentity(),
+      transport: new InMemoryTransport(network, peerB),
+    });
+
+    syncA.start();
+    syncA.start();
+    syncB.start();
+
+    const ignored: SyncEvent[] = [];
+    syncA.on('other:event', (event) => ignored.push(event));
+
+    await syncA.connect(peerB);
+    expect(await syncA.sendDeltaBatch(peerB, [])).toBe(0);
+    await flush();
+
+    expect(ignored).toEqual([]);
+    expect(syncA.localEntries()).toEqual([]);
+  });
+
+  it('rejects a handshake that never gets a response', async () => {
+    vi.useFakeTimers();
+    try {
+      const sync = new LocalSyncEngine({
+        peerId: 'peer-a',
+        identity: createIdentity(),
+        transport: new StubTransport('peer-a'),
+      });
+      sync.start();
+
+      const connecting = sync.connect('peer-ghost');
+      const assertion = expect(connecting).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reports an unexpected response and a non-Error transport failure', async () => {
+    const transport = new StubTransport('peer-b');
+    const sync = new LocalSyncEngine({ peerId: 'peer-b', identity: createIdentity(), transport });
+    const events: SyncEvent[] = [];
+    sync.on('sync:event', (event) => events.push(event));
+    sync.start();
+
+    deliverWire(transport, 'peer-b', 'peer-x', {
+      kind: 'handshake-response',
+      response: { peerId: 'peer-x' },
+    });
+    await flush();
+    expect(events.find((event) => event.type === 'SYNC_ERROR')?.payload.message).toBe(
+      'Unexpected handshake response'
+    );
+
+    const failing = new StubTransport('peer-c', 'transport exploded');
+    const failingSync = new LocalSyncEngine({
+      peerId: 'peer-c',
+      identity: createIdentity(),
+      transport: failing,
+    });
+    const failures: SyncEvent[] = [];
+    failingSync.on('sync:event', (event) => failures.push(event));
+    failingSync.start();
+
+    const pending = createHandshakeInit('peer-z', createIdentity(), 'peer-c');
+    deliverWire(failing, 'peer-c', 'peer-z', { kind: 'handshake-init', init: pending.init });
+    await flush();
+    expect(failures.find((event) => event.type === 'SYNC_ERROR')?.payload.message).toBe(
+      'Unknown sync error'
+    );
+  });
+
+  it('accepts a repeated init when no connect() waiter is pending', async () => {
+    const transport = new StubTransport('peer-b');
+    const sync = new LocalSyncEngine({ peerId: 'peer-b', identity: createIdentity(), transport });
+    const events: SyncEvent[] = [];
+    sync.on('sync:event', (event) => events.push(event));
+    sync.start();
+
+    const identity = createIdentity();
+    for (let i = 0; i < 2; i += 1) {
+      const pending = createHandshakeInit('peer-a', identity, 'peer-b');
+      deliverWire(transport, 'peer-b', 'peer-a', { kind: 'handshake-init', init: pending.init });
+    }
+    await flush();
+
+    expect(events.filter((event) => event.type === 'PEER_CONNECTED')).toHaveLength(2);
+  });
+});
+
+describe('sync engine lifecycle', () => {
+  it('closes the transport and clears session state', async () => {
+    const { peerB, syncA } = createPair();
+    await syncA.connect(peerB);
+    expect(syncA.getSession(peerB)).toBeDefined();
+
+    await syncA.close();
+    expect(syncA.getSession(peerB)).toBeUndefined();
   });
 });
