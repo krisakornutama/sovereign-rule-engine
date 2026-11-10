@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./persistence": {
+      "types": "./dist/persistence/engine-store.d.ts",
+      "import": "./dist/persistence/engine-store.js"
     }
   },
   "files": [
