@@ -74,6 +74,33 @@ Dotted fields (`sensor.temp`) are resolved against the event payload.
 const bridge = new RuleEngineBridge({ ruleEngine, crdtStore, syncEngine });
 ```
 
+### Persistence through `sovereign-vault`
+
+The rule table and working state can survive a restart without touching the disk in
+plaintext. Import the opt-in helper (it needs only a `has`/`get`/`put` byte store, so
+the engine stays dependency-free and in-memory use is unaffected):
+
+```ts
+import { Vault, FileBlobStore } from 'sovereign-vault';
+import { loadEngineState, saveEngineState } from 'sovereign-rule-engine/persistence';
+
+const vault = await Vault.open({ store: new FileBlobStore('./data/vault'), masterKey });
+
+await loadEngineState(vault, engine); // false on first boot
+// ... after rules change or a sync round ...
+await saveEngineState(vault, engine);
+```
+
+- Default key: `rule-engine/state` (pass another key for per-tenant snapshots).
+- `sovereign-vault`'s `Vault` satisfies the `EngineVault` interface as-is, so both
+  calls accept it directly. Anything with the same three methods works too.
+- The snapshot is versioned and validated; a corrupt, unreadable or unsupported
+  snapshot throws **before** the running engine is modified.
+- Rules and `engine.getState()` are persisted; CRDT/sync data stays in its own store
+  so the same bytes are never written twice.
+- Anchors/rollback detection belong to the vault (`anchorNow` / `verifyAnchor`); this
+  helper is a checkpoint, not a write-ahead log.
+
 ## Scripts
 
 ```bash
@@ -93,7 +120,7 @@ The published library itself targets Node 18+ and modern browsers.
 ```bash
 npm install
 
-npm test               # 99 vitest tests (unit, integration, property-based)
+npm test               # 113 vitest tests (unit, integration, property-based)
 npm run test:coverage  # v8 coverage report in coverage/ + threshold gate
 npm run lint           # ESLint (flat config, type-aware TS rules)
 npm run format:check   # Prettier check (npm run format to rewrite)
